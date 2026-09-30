@@ -2,12 +2,13 @@
 # One-shot EC2 bootstrap for the live workshop.
 # Works on Ubuntu 22.04/24.04 and Amazon Linux 2023 (x86_64 or arm64).
 #
-# Usage: copy this repo to the server, then from its root:
-#   sudo EVENT_TOKEN=... DEPLOY_PUBKEY="ssh-ed25519 ..." bash infra/ec2-setup.sh
+# Usage (paste into EC2 Instance Connect in the AWS console):
+#   curl -fsSL https://raw.githubusercontent.com/IncredApplicationsPvtLtd/workshop/main/infra/ec2-setup.sh \
+#     | sudo EVENT_TOKEN=... DEPLOY_PUBKEY="ssh-ed25519 ..." bash
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-workshop.incred.io}"
-SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="${REPO:-IncredApplicationsPvtLtd/workshop}"
 EVENT_TOKEN="${EVENT_TOKEN:?set EVENT_TOKEN}"
 DEPLOY_PUBKEY="${DEPLOY_PUBKEY:?set DEPLOY_PUBKEY}"
 NODE_VERSION="v20.18.0"
@@ -52,10 +53,9 @@ SYSTEMCTL=$(command -v systemctl)
 echo "deploy ALL=(root) NOPASSWD: $SYSTEMCTL restart workshop, $SYSTEMCTL status workshop" > /etc/sudoers.d/workshop
 chmod 440 /etc/sudoers.d/workshop
 
-log "Installing app code from $SRC_DIR"
+log "Installing app code from github.com/$REPO"
 if [ ! -d "$APP_DIR/app" ]; then
-  mkdir -p "$APP_DIR"
-  rsync -a --exclude .git --exclude .github --exclude docs "$SRC_DIR/" "$APP_DIR/"
+  rm -rf "$APP_DIR" && git clone --depth 1 "https://github.com/$REPO.git" "$APP_DIR" && rm -rf "$APP_DIR/.git"
   printf '{"sha":"bootstrap","short":"v0","message":"Initial setup","author":"server bootstrap","time":"%s"}\n' "$(date -u +%FT%TZ)" > "$APP_DIR/version.json"
 fi
 chown -R deploy:deploy "$APP_DIR"
