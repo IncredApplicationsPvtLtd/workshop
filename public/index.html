@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ship It Live — InCred Workshop</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- =========================================================
+     👩‍💻 STUDENT EDIT ZONE — change anything in this block,
+     commit to GitHub, and watch it go live for the whole hall.
+     ========================================================= -->
+<header class="hero" id="hero" style="--accent: #7c5cff;">
+  <p class="eyebrow">🎓 Live from the workshop hall</p>
+  <h1 id="headline">Hello from the future engineers of India!</h1>
+  <p class="byline">This line was shipped to production by <strong id="developer">Your Name Here</strong></p>
+  <p class="tagline">Today's message: <em>"Don't just learn frontend or backend — learn how software reaches people."</em></p>
+</header>
+<!-- ================= END OF STUDENT EDIT ZONE ================= -->
+
+<main>
+  <section class="live" aria-label="Live server stats">
+    <div class="stat"><span class="num" id="online">–</span><span class="lbl">people online now</span></div>
+    <div class="stat"><span class="num" id="rps">–</span><span class="lbl">requests / sec</span></div>
+    <div class="stat"><span class="num" id="p95">–</span><span class="lbl">checkout speed</span></div>
+    <div class="stat"><span class="num" id="cpu">–</span><span class="lbl">server CPU</span></div>
+  </section>
+
+  <section class="card version">
+    <div class="dot" id="conn-dot"></div>
+    <div>
+      <div class="v-title">You are running version <code id="v-sha">…</code></div>
+      <div class="v-sub" id="v-msg">connecting to server in Mumbai (ap-south-1)…</div>
+    </div>
+  </section>
+
+  <section class="card shop" id="shop">
+    <div class="product">
+      <div class="emoji">🎧</div>
+      <div>
+        <h2>Workshop Headphones</h2>
+        <p class="price">₹1,999 <s>₹4,999</s></p>
+      </div>
+    </div>
+    <button id="buy-btn" class="buy">Buy now</button>
+    <p class="result" id="buy-result">Every click is a real request to one small server in AWS Mumbai.</p>
+  </section>
+
+  <section class="card flash hidden" id="flash">
+    <h2>🔥 FLASH SALE IS LIVE</h2>
+    <p>The whole hall is buying at once. Tap as fast as you can!</p>
+    <button id="flash-btn" class="buy flash-btn">TAP TO BUY 🔥</button>
+    <div class="flash-stats"><span id="my-ok">0</span> ✅ bought &nbsp;·&nbsp; <span id="my-fail">0</span> ❌ failed &nbsp;·&nbsp; last: <span id="my-ms">–</span></div>
+  </section>
+
+  <section class="card journey">
+    <h3>How your screen changed</h3>
+    <ol class="steps">
+      <li><b>Code</b> one student edits a line</li>
+      <li><b>Git</b> commit pushed to GitHub</li>
+      <li><b>CI</b> automated tests guard production</li>
+      <li><b>CD</b> deployed to AWS EC2 over SSH</li>
+      <li><b>DNS</b> workshop.incred.io → 3.7.219.133</li>
+      <li><b>You</b> see it on your phone</li>
+    </ol>
+    <a class="link" href="/scale">What happens at 1 million users? →</a>
+  </section>
+</main>
+
+<div class="toast hidden" id="toast"></div>
+<div class="overload hidden" id="overload">🔥 Server under heavy load — you are feeling what real users feel</div>
+
+<div class="deploy-overlay hidden" id="deploy-overlay">
+  <div class="rocket">🚀</div>
+  <h2>New version is LIVE</h2>
+  <p id="deploy-text"></p>
+  <p class="small">Nobody refreshed your phone. The pipeline did.</p>
+</div>
+
+<script src="/live.js"></script>
+</body>
+</html>

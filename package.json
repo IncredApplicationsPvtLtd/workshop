@@ -1,0 +1,12 @@
+{
+  "name": "devops-live-workshop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One commit. 100 users. Live CI/CD + scaling demo.",
+  "main": "app/server.js",
+  "scripts": {
+    "start": "node app/server.js",
+    "test": "node --test test/"
+  },
+  "engines": { "node": ">=20" }
+}

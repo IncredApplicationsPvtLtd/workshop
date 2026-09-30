@@ -1,0 +1,45 @@
+name: 🔥 Launch Day (load test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Virtual users hitting the site at the same time'
+        default: '300'
+        required: true
+      duration:
+        description: 'How long to hold peak traffic'
+        default: '60s'
+        required: true
+
+env:
+  SITE: https://workshop.incred.io
+
+jobs:
+  launch:
+    name: 🔥 ${{ inputs.users }} users hit the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/setup-k6-action@v1
+
+      - name: 📣 Warn the hall
+        run: |
+          jq -nc --arg t "${{ inputs.users }} virtual users for ${{ inputs.duration }}" '{stage:"launch",status:"failure",text:$t}' \
+            | curl -s -m 5 -X POST "$SITE/api/event" -H "Authorization: Bearer ${{ secrets.EVENT_TOKEN }}" -H 'Content-Type: application/json' -d @- || true
+
+      - name: 🔥 Unleash traffic
+        run: k6 run --summary-export=summary.json -e BASE_URL=$SITE -e USERS=${{ inputs.users }} -e DURATION=${{ inputs.duration }} loadtest/launch-day.js
+        continue-on-error: true
+
+      - name: 📉 Report results
+        if: always()
+        run: |
+          reqs=$(jq '.metrics.http_reqs.count // 0' summary.json)
+          p95=$(jq '.metrics["http_req_duration{name:checkout}"]["p(95)"] // .metrics.http_req_duration["p(95)"] // 0 | floor' summary.json)
+          fail=$(jq '(.metrics.http_req_failed.value // 0) * 100 | floor' summary.json)
+          text="$reqs requests, checkout p95 ${p95}ms, ${fail}% failed"
+          echo "### $text" >> $GITHUB_STEP_SUMMARY
+          jq -nc --arg t "$text" '{stage:"launched",status:"info",text:$t}' \
+            | curl -s -m 5 -X POST "$SITE/api/event" -H "Authorization: Bearer ${{ secrets.EVENT_TOKEN }}" -H 'Content-Type: application/json' -d @- || true

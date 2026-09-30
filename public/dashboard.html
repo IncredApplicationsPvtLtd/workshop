@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mission Control — Workshop</title>
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  body { padding: 20px; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 18px; }
+  .top h1 { margin: 0; font-size: 28px; }
+  .top .server { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .kpi .num { font-size: 52px; line-height: 1; }
+  .kpi .lbl { font-size: 14px; margin-top: 8px; }
+  .chart { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-top: 12px; }
+  .chart h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+  canvas { width: 100%; height: 150px; display: block; }
+  .side { display: grid; gap: 12px; align-content: start; }
+  .qr { background: white; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; align-items: center; color: #111; }
+  .qr #qrcode img, .qr #qrcode canvas { width: 220px !important; height: 220px !important; }
+  .qr .url { font-weight: 800; font-size: 22px; margin-top: 8px; }
+  .timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; max-height: 330px; overflow: auto; }
+  .timeline li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; font-size: 14px; }
+  .timeline time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .timeline .success { color: var(--ok); } .timeline .failure { color: var(--bad); }
+  .controls { display: none; gap: 8px; }
+  .controls.on { display: flex; }
+  .controls button { border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 700; cursor: pointer; color: white; }
+  .start { background: var(--bad); } .stop { background: #334155; }
+  .version-big code { font-size: 20px; color: #c4b5fd; }
+  @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>🛰️ Mission Control</h1>
+      <div class="server">1 × EC2 t2.micro · 1 vCPU · 1 GB RAM · ap-south-1a (Mumbai) · <span id="uptime">–</span></div>
+    </div>
+    <div class="controls" id="controls">
+      <button class="start" id="fs-start">🔥 Start Flash Sale</button>
+      <button class="stop" id="fs-stop">🛑 Stop</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="kpis">
+        <div class="kpi"><span class="num" id="online">0</span><span class="lbl">👥 people online</span></div>
+        <div class="kpi"><span class="num" id="rps">0</span><span class="lbl">⚡ requests / sec (peak <span id="peak">0</span>)</span></div>
+        <div class="kpi"><span class="num" id="p95">–</span><span class="lbl">⏱️ checkout p95 latency</span></div>
+        <div class="kpi"><span class="num" id="cpu">0%</span><span class="lbl">🧠 CPU</span></div>
+        <div class="kpi"><span class="num" id="inflight">0</span><span class="lbl">⏳ requests waiting in queue</span></div>
+        <div class="kpi"><span class="num" id="errors">0</span><span class="lbl">❌ failed requests (total <span id="terr">0</span>)</span></div>
+      </div>
+      <div class="chart"><h3>Requests per second — last 2 minutes</h3><canvas id="c-rps"></canvas></div>
+      <div class="chart"><h3>Checkout latency p95 (ms) — what users feel</h3><canvas id="c-lat"></canvas></div>
+    </div>
+
+    <div class="side">
+      <div class="qr"><div id="qrcode"></div><div class="url" id="url"></div></div>
+      <div class="card version-big">
+        <div class="lbl" style="color:var(--muted)">Live version</div>
+        <div><code id="v-sha">…</code></div>
+        <div class="v-sub" id="v-msg"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 10px">📡 Pipeline &amp; events</h3>
+        <ul class="timeline" id="timeline"><li><time>—</time><span>Waiting for the first commit…</span></li></ul>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const url = location.host;
+  $('url').textContent = url;
+  if (window.QRCode) new QRCode($('qrcode'), { text: location.protocol + '//' + url, width: 220, height: 220 });
+
+  const key = new URLSearchParams(location.search).get('key');
+  if (key) $('controls').classList.add('on');
+  const post = (stage, status, text = '') => fetch('/api/event', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+    body: JSON.stringify({ stage, status, text }),
+  });
+  $('fs-start').onclick = () => post('flashsale', 'start', 'The hall vs. one t2.micro');
+  $('fs-stop').onclick = () => post('flashsale', 'stop');
+
+  const rps = [], lat = [];
+  const fmtMs = ms => (ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms');
+  const tone = (el, cls) => { el.classList.remove('ok', 'warn', 'bad'); if (cls) el.classList.add(cls); };
+
+  function draw(canvas, data, color, danger) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    const g = canvas.getContext('2d'); g.scale(dpr, dpr);
+    const max = Math.max(10, ...data) * 1.15;
+    g.strokeStyle = '#26263a'; g.lineWidth = 1;
+    g.fillStyle = '#9a9ab5'; g.font = '11px system-ui';
+    for (let i = 0; i <= 3; i++) {
+      const y = h - (h * i) / 3;
+      g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+      if (i) g.fillText(Math.round((max * i) / 3), 4, y + 12);
+    }
+    if (danger && danger < max) {
+      const y = h - (danger / max) * h;
+      g.setLineDash([6, 6]); g.strokeStyle = '#ef4444'; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); g.setLineDash([]);
+      g.fillStyle = '#ef4444'; g.fillText('users start leaving', w - 110, y - 4);
+    }
+    if (data.length < 2) return;
+    const step = w / 119, x0 = w - (data.length - 1) * step;
+    g.beginPath();
+    data.forEach((v, i) => { const x = x0 + i * step, y = h - (v / max) * h; i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.strokeStyle = color; g.lineWidth = 2.5; g.stroke();
+    g.lineTo(w, h); g.lineTo(x0, h); g.closePath();
+    g.fillStyle = color + '22'; g.fill();
+  }
+
+  function push(s) {
+    rps.push(s.rps); lat.push(s.p95);
+    if (rps.length > 120) { rps.shift(); lat.shift(); }
+    draw($('c-rps'), rps, '#7c5cff');
+    draw($('c-lat'), lat, '#f59e0b', 1500);
+  }
+
+  function addEvent(ev) {
+    const tl = $('timeline');
+    if (tl.dataset.empty !== 'no') { tl.innerHTML = ''; tl.dataset.empty = 'no'; }
+    const li = document.createElement('li');
+    const time = new Date(ev.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const icon = { push: '📦', test: '🧪', tested: '✅', failed: '❌', deploy: '🚚', live: '🚀', launch: '🔥', launched: '📉', flashsale: '🛒' }[ev.stage] || 'ℹ️';
+    li.innerHTML = `<time>${time}</time><span class="${ev.status}"></span>`;
+    li.querySelector('span').textContent = `${icon} ${ev.stage.toUpperCase()} ${ev.text}`;
+    tl.prepend(li);
+  }
+
+  function showVersion(v) { $('v-sha').textContent = v.short; $('v-msg').textContent = `"${v.message}" — ${v.author}`; }
+
+  const es = new EventSource('/api/stream');
+  es.addEventListener('hello', e => {
+    const d = JSON.parse(e.data);
+    showVersion(d.version);
+    rps.length = lat.length = 0;
+    d.history.forEach(push);
+    d.events.forEach(addEvent);
+  });
+  es.addEventListener('pipeline', e => addEvent(JSON.parse(e.data)));
+  es.addEventListener('stats', e => {
+    const s = JSON.parse(e.data);
+    showVersion(s.version);
+    $('online').textContent = s.online;
+    $('rps').textContent = s.rps;
+    $('peak').textContent = s.totals.peakRps;
+    $('p95').textContent = s.p95 ? fmtMs(s.p95) : 'idle';
+    tone($('p95'), s.p95 > 1500 ? 'bad' : s.p95 > 400 ? 'warn' : 'ok');
+    $('cpu').textContent = s.cpu + '%';
+    tone($('cpu'), s.cpu > 85 ? 'bad' : s.cpu > 60 ? 'warn' : 'ok');
+    $('inflight').textContent = s.inFlight;
+    $('errors').textContent = s.errors;
+    tone($('errors'), s.errors ? 'bad' : '');
+    $('terr').textContent = s.totals.errors;
+    $('uptime').textContent = 'up ' + s.uptime + 's';
+    push(s);
+  });
+})();
+</script>
+</body>
+</html>
